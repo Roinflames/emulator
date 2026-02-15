@@ -1,7 +1,7 @@
 let currentSaveId = null;
 let currentSave = null;
-let saveTimeout = null;
 let emulatorReady = false;
+let pendingSaveData = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!requireAuth()) return;
@@ -15,11 +15,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('back-btn').addEventListener('click', () => {
         window.location.href = '/lobby.html';
-    });
-
-    // Save before leaving the page
-    window.addEventListener('beforeunload', () => {
-        if (emulatorReady) extractAndUploadSave();
     });
 
     await loadAndStartGame();
@@ -46,30 +41,46 @@ async function loadAndStartGame() {
     const systemMap = { gb: 'gb', gbc: 'gb', gba: 'gba', nds: 'nds' };
     const system = systemMap[ext] || 'gba';
 
+    // Pre-fetch save data if it exists
+    if (currentSave.has_save_data) {
+        try {
+            const res = await apiRequest('/saves/' + currentSaveId);
+            if (res && res.ok) {
+                const blob = await res.blob();
+                pendingSaveData = new Uint8Array(await blob.arrayBuffer());
+                console.log('[PokemonWeb] Save data loaded:', pendingSaveData.length, 'bytes');
+            }
+        } catch (e) {
+            console.error('[PokemonWeb] Failed to load save data:', e);
+        }
+    }
+
     // Setup EmulatorJS
     window.EJS_player = '#game';
     window.EJS_core = system;
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_color = '#dc0a2d';
 
-    // ROM URL (public endpoint, no auth needed)
+    // ROM URL (public endpoint)
     window.EJS_gameUrl = API + '/roms/download?name=' + encodeURIComponent(currentSave.rom_name);
 
-    // Load existing save data
-    if (currentSave.has_save_data) {
-        const saveDataUrl = await createAuthenticatedBlobUrl('/saves/' + currentSaveId);
-        if (saveDataUrl) {
-            window.EJS_gameSaveUrl = saveDataUrl;
-        }
-    }
+    // Force save flush every 30 seconds so EJS_onSaveSave fires
+    window.EJS_fixedSaveInterval = 30000;
 
-    // Auto-save: fires when in-game save changes (e.g. saving at Pokemon Center)
-    window.EJS_onSaveUpdate = function(e) {
-        console.log('[PokemonWeb] Save update detected, uploading...');
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => {
+    // Callback when save is flushed (this is the correct one)
+    window.EJS_onSaveSave = function(e) {
+        console.log('[PokemonWeb] EJS_onSaveSave fired');
+        if (e && e.save && e.save.length > 0) {
             uploadSaveData(e.save);
-        }, 1000);
+        }
+    };
+
+    // Also try EJS_onSaveUpdate as fallback
+    window.EJS_onSaveUpdate = function(e) {
+        console.log('[PokemonWeb] EJS_onSaveUpdate fired');
+        if (e && e.save && e.save.length > 0) {
+            uploadSaveData(e.save);
+        }
     };
 
     window.EJS_onGameStart = function() {
@@ -77,10 +88,10 @@ async function loadAndStartGame() {
         emulatorReady = true;
         document.getElementById('loading-msg').classList.add('hidden');
 
-        // Periodic auto-save every 30 seconds as backup
-        setInterval(() => {
-            extractAndUploadSave();
-        }, 30000);
+        // Inject save data into emulator filesystem
+        if (pendingSaveData) {
+            injectSaveData(pendingSaveData);
+        }
 
         // Show nuzlocke panel if applicable
         if (currentSave.is_nuzlocke) {
@@ -95,22 +106,81 @@ async function loadAndStartGame() {
     document.body.appendChild(script);
 }
 
-async function createAuthenticatedBlobUrl(path) {
+function injectSaveData(saveData) {
     try {
-        const res = await apiRequest(path);
-        if (!res || !res.ok) return null;
-        const blob = await res.blob();
-        return URL.createObjectURL(blob);
-    } catch {
-        return null;
+        const emu = getEmulatorInstance();
+        if (!emu) {
+            console.error('[PokemonWeb] No emulator instance found for save injection');
+            return;
+        }
+
+        const gm = emu.gameManager;
+        if (!gm) {
+            console.error('[PokemonWeb] No gameManager found');
+            return;
+        }
+
+        // Method 1: Use loadSaveFiles if available
+        if (typeof gm.loadSaveFiles === 'function') {
+            console.log('[PokemonWeb] Using loadSaveFiles()');
+            gm.loadSaveFiles();
+        }
+
+        // Method 2: Write directly to the virtual filesystem
+        if (gm.FS) {
+            const savePath = getSavePath(gm.FS);
+            if (savePath) {
+                console.log('[PokemonWeb] Writing save to:', savePath);
+                gm.FS.writeFile(savePath, saveData);
+                // Reload the save into the core
+                if (typeof gm.loadSave === 'function') {
+                    gm.loadSave();
+                }
+                console.log('[PokemonWeb] Save injected! Restart the game or load save in-game.');
+            }
+        } else if (gm.Module && gm.Module.FS) {
+            const savePath = getSavePath(gm.Module.FS);
+            if (savePath) {
+                console.log('[PokemonWeb] Writing save via Module.FS to:', savePath);
+                gm.Module.FS.writeFile(savePath, saveData);
+                console.log('[PokemonWeb] Save injected via Module.FS');
+            }
+        }
+    } catch (err) {
+        console.error('[PokemonWeb] Save injection failed:', err);
     }
 }
 
-function getEmulatorInstance() {
-    // EmulatorJS exposes the emulator on the window after init
-    if (window.EJS_emulator) return window.EJS_emulator;
+function getSavePath(fs) {
+    // Try common save paths used by RetroArch/EmulatorJS
+    const paths = [
+        '/data/saves/',
+        '/home/web_user/retroarch/userdata/saves/',
+        '/home/web_user/retroarch/userdata/states/'
+    ];
 
-    // Try via iframe
+    for (const dir of paths) {
+        try {
+            const files = fs.readdir(dir);
+            for (const file of files) {
+                if (file === '.' || file === '..') continue;
+                if (file.endsWith('.srm') || file.endsWith('.sav')) {
+                    return dir + file;
+                }
+            }
+            // If directory exists but no save file yet, create one
+            if (files.length <= 2) { // only . and ..
+                // Derive save name from ROM name
+                const romBase = currentSave.rom_name.replace(/\.[^.]+$/, '');
+                return dir + romBase + '.srm';
+            }
+        } catch {}
+    }
+    return null;
+}
+
+function getEmulatorInstance() {
+    if (window.EJS_emulator) return window.EJS_emulator;
     const iframe = document.querySelector('#game iframe');
     if (iframe && iframe.contentWindow) {
         return iframe.contentWindow.EJS_emulator || null;
@@ -118,46 +188,49 @@ function getEmulatorInstance() {
     return null;
 }
 
-function extractAndUploadSave() {
+function extractSaveData() {
     try {
         const emu = getEmulatorInstance();
-        if (!emu) return;
+        if (!emu || !emu.gameManager) return null;
 
-        // Try different methods to get save data
-        if (emu.gameManager && typeof emu.gameManager.getSave === 'function') {
-            const save = emu.gameManager.getSave();
+        const gm = emu.gameManager;
+
+        // Method 1: getSaveFile
+        if (typeof gm.getSaveFile === 'function') {
+            const save = gm.getSaveFile();
             if (save && save.length > 0) {
-                uploadSaveData(save);
-                return;
+                console.log('[PokemonWeb] Got save via getSaveFile():', save.length, 'bytes');
+                return save;
             }
         }
 
-        // Alternative: try getSaveFile
-        if (typeof emu.getSaveFile === 'function') {
-            const save = emu.getSaveFile();
+        // Method 2: getSave
+        if (typeof gm.getSave === 'function') {
+            const save = gm.getSave();
             if (save && save.length > 0) {
-                uploadSaveData(save);
-                return;
+                console.log('[PokemonWeb] Got save via getSave():', save.length, 'bytes');
+                return save;
             }
         }
 
-        // Alternative: try Module FS
-        if (emu.Module && emu.Module.FS) {
-            try {
-                const files = emu.Module.FS.readdir('/data/saves/');
-                for (const file of files) {
-                    if (file === '.' || file === '..') continue;
-                    const data = emu.Module.FS.readFile('/data/saves/' + file);
+        // Method 3: Read from filesystem
+        const fs = gm.FS || (gm.Module && gm.Module.FS);
+        if (fs) {
+            const savePath = getSavePath(fs);
+            if (savePath) {
+                try {
+                    const data = fs.readFile(savePath);
                     if (data && data.length > 0) {
-                        uploadSaveData(data);
-                        return;
+                        console.log('[PokemonWeb] Got save via FS:', data.length, 'bytes from', savePath);
+                        return data;
                     }
-                }
-            } catch {}
+                } catch {}
+            }
         }
     } catch (err) {
         console.error('[PokemonWeb] Extract save failed:', err);
     }
+    return null;
 }
 
 async function uploadSaveData(saveBuffer) {
@@ -170,8 +243,10 @@ async function uploadSaveData(saveBuffer) {
             body: saveBuffer
         });
         if (res.ok) {
-            console.log('[PokemonWeb] Save uploaded successfully');
+            console.log('[PokemonWeb] Save uploaded:', saveBuffer.length, 'bytes');
             showSaveIndicator();
+        } else {
+            console.error('[PokemonWeb] Upload failed:', res.status);
         }
     } catch (err) {
         console.error('[PokemonWeb] Upload save failed:', err);
@@ -192,13 +267,23 @@ async function manualSave() {
     btn.disabled = true;
     btn.textContent = 'Guardando...';
 
-    extractAndUploadSave();
-
-    // Give it a moment then show result
-    setTimeout(() => {
+    const save = extractSaveData();
+    if (save && save.length > 0) {
+        await uploadSaveData(save);
         btn.textContent = 'Guardado!';
-        setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 1500);
-    }, 1000);
+    } else {
+        console.warn('[PokemonWeb] No save data found to upload');
+        // Log emulator state for debugging
+        const emu = getEmulatorInstance();
+        if (emu) {
+            console.log('[PokemonWeb] Emulator keys:', Object.keys(emu));
+            if (emu.gameManager) {
+                console.log('[PokemonWeb] GameManager keys:', Object.keys(emu.gameManager));
+            }
+        }
+        btn.textContent = 'Sin datos';
+    }
+    setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 2000);
 }
 
 function showSaveIndicator() {
