@@ -83,7 +83,7 @@ func ListSaves(c *fiber.Ctx) error {
 
 	rows, err := database.DB.Query(
 		`SELECT id, user_id, rom_name, save_name, is_nuzlocke, save_data IS NOT NULL, created_at, updated_at
-		 FROM saves WHERE user_id = ? ORDER BY updated_at DESC`, userID)
+		 FROM saves WHERE user_id = $1 ORDER BY updated_at DESC`, userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to query saves"})
 	}
@@ -115,14 +115,14 @@ func CreateSave(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "rom_name and save_name are required"})
 	}
 
-	result, err := database.DB.Exec(
-		"INSERT INTO saves (user_id, rom_name, save_name, is_nuzlocke) VALUES (?, ?, ?, ?)",
-		userID, req.RomName, req.SaveName, req.IsNuzlocke)
+	var id int
+	err := database.DB.QueryRow(
+		"INSERT INTO saves (user_id, rom_name, save_name, is_nuzlocke) VALUES ($1, $2, $3, $4) RETURNING id",
+		userID, req.RomName, req.SaveName, req.IsNuzlocke).Scan(&id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create save"})
 	}
 
-	id, _ := result.LastInsertId()
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": id, "message": "save created"})
 }
 
@@ -134,7 +134,7 @@ func GetSaveData(c *fiber.Ctx) error {
 	}
 
 	var data []byte
-	err = database.DB.QueryRow("SELECT save_data FROM saves WHERE id = ? AND user_id = ?", saveID, userID).Scan(&data)
+	err = database.DB.QueryRow("SELECT save_data FROM saves WHERE id = $1 AND user_id = $2", saveID, userID).Scan(&data)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "save not found"})
 	}
@@ -169,7 +169,7 @@ func UpdateSaveData(c *fiber.Ctx) error {
 	}
 
 	result, err := database.DB.Exec(
-		"UPDATE saves SET save_data = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+		"UPDATE saves SET save_data = $1, updated_at = $2 WHERE id = $3 AND user_id = $4",
 		body, time.Now(), saveID, userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update save"})
@@ -190,7 +190,7 @@ func DeleteSave(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid save id"})
 	}
 
-	result, err := database.DB.Exec("DELETE FROM saves WHERE id = ? AND user_id = ?", saveID, userID)
+	result, err := database.DB.Exec("DELETE FROM saves WHERE id = $1 AND user_id = $2", saveID, userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete save"})
 	}

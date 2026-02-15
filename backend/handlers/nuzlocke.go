@@ -16,16 +16,16 @@ func GetNuzlockeData(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid save id"})
 	}
 
-	// Verify save belongs to user and is nuzlocke
+	// Verify save belongs to user
 	var isNuzlocke bool
-	err = database.DB.QueryRow("SELECT is_nuzlocke FROM saves WHERE id = ? AND user_id = ?", saveID, userID).Scan(&isNuzlocke)
+	err = database.DB.QueryRow("SELECT is_nuzlocke FROM saves WHERE id = $1 AND user_id = $2", saveID, userID).Scan(&isNuzlocke)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "save not found"})
 	}
 
 	rows, err := database.DB.Query(
 		`SELECT id, save_id, pokemon_name, nickname, route, is_alive, cause_of_death, level_caught, notes
-		 FROM nuzlocke_pokemon WHERE save_id = ? ORDER BY id`, saveID)
+		 FROM nuzlocke_pokemon WHERE save_id = $1 ORDER BY id`, saveID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to query nuzlocke data"})
 	}
@@ -69,7 +69,7 @@ func AddNuzlockePokemon(c *fiber.Ctx) error {
 
 	// Verify ownership
 	var exists bool
-	err = database.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM saves WHERE id = ? AND user_id = ?)", saveID, userID).Scan(&exists)
+	err = database.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM saves WHERE id = $1 AND user_id = $2)", saveID, userID).Scan(&exists)
 	if err != nil || !exists {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "save not found"})
 	}
@@ -82,16 +82,16 @@ func AddNuzlockePokemon(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "pokemon_name and route are required"})
 	}
 
-	result, err := database.DB.Exec(
+	var id int
+	err = database.DB.QueryRow(
 		`INSERT INTO nuzlocke_pokemon (save_id, pokemon_name, nickname, route, is_alive, level_caught, notes)
-		 VALUES (?, ?, ?, ?, TRUE, ?, ?)`,
-		saveID, p.PokemonName, p.Nickname, p.Route, p.LevelCaught, p.Notes)
+		 VALUES ($1, $2, $3, $4, TRUE, $5, $6) RETURNING id`,
+		saveID, p.PokemonName, p.Nickname, p.Route, p.LevelCaught, p.Notes).Scan(&id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to add pokemon"})
 	}
 
-	id, _ := result.LastInsertId()
-	p.ID = int(id)
+	p.ID = id
 	p.SaveID = saveID
 	p.IsAlive = true
 	return c.Status(fiber.StatusCreated).JSON(p)
@@ -110,7 +110,7 @@ func KillNuzlockePokemon(c *fiber.Ctx) error {
 
 	// Verify ownership
 	var exists bool
-	err = database.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM saves WHERE id = ? AND user_id = ?)", saveID, userID).Scan(&exists)
+	err = database.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM saves WHERE id = $1 AND user_id = $2)", saveID, userID).Scan(&exists)
 	if err != nil || !exists {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "save not found"})
 	}
@@ -121,7 +121,7 @@ func KillNuzlockePokemon(c *fiber.Ctx) error {
 	c.BodyParser(&body)
 
 	result, err := database.DB.Exec(
-		"UPDATE nuzlocke_pokemon SET is_alive = FALSE, cause_of_death = ? WHERE id = ? AND save_id = ?",
+		"UPDATE nuzlocke_pokemon SET is_alive = FALSE, cause_of_death = $1 WHERE id = $2 AND save_id = $3",
 		body.CauseOfDeath, pokemonID, saveID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update pokemon"})
@@ -147,12 +147,12 @@ func DeleteNuzlockePokemon(c *fiber.Ctx) error {
 	}
 
 	var exists bool
-	err = database.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM saves WHERE id = ? AND user_id = ?)", saveID, userID).Scan(&exists)
+	err = database.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM saves WHERE id = $1 AND user_id = $2)", saveID, userID).Scan(&exists)
 	if err != nil || !exists {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "save not found"})
 	}
 
-	result, err := database.DB.Exec("DELETE FROM nuzlocke_pokemon WHERE id = ? AND save_id = ?", pokemonID, saveID)
+	result, err := database.DB.Exec("DELETE FROM nuzlocke_pokemon WHERE id = $1 AND save_id = $2", pokemonID, saveID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete pokemon"})
 	}

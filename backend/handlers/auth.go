@@ -23,13 +23,13 @@ func Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to hash password"})
 	}
 
-	result, err := database.DB.Exec("INSERT INTO users (username, password_hash) VALUES (?, ?)", req.Username, string(hash))
+	var id int
+	err = database.DB.QueryRow("INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id", req.Username, string(hash)).Scan(&id)
 	if err != nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "username already exists"})
 	}
 
-	id, _ := result.LastInsertId()
-	token, err := middleware.GenerateToken(int(id), req.Username)
+	token, err := middleware.GenerateToken(id, req.Username)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to generate token"})
 	}
@@ -47,7 +47,7 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	err := database.DB.QueryRow("SELECT id, username, password_hash FROM users WHERE username = ?", req.Username).
+	err := database.DB.QueryRow("SELECT id, username, password_hash FROM users WHERE username = $1", req.Username).
 		Scan(&user.ID, &user.Username, &user.PasswordHash)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid credentials"})

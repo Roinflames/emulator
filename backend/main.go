@@ -18,14 +18,19 @@ func main() {
 	execDir, _ := os.Getwd()
 	romsDir := filepath.Join(execDir, "..", "roms")
 	frontendDir := filepath.Join(execDir, "..", "frontend")
-	dbPath := filepath.Join(execDir, "pokemon.db")
 
 	// Allow overrides via env
 	if v := os.Getenv("ROMS_DIR"); v != "" {
 		romsDir = v
 	}
-	if v := os.Getenv("DB_PATH"); v != "" {
-		dbPath = v
+	if v := os.Getenv("FRONTEND_DIR"); v != "" {
+		frontendDir = v
+	}
+
+	// Database URL (PostgreSQL)
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL environment variable is required")
 	}
 
 	// Ensure roms directory exists
@@ -33,7 +38,7 @@ func main() {
 	handlers.RomsDir = romsDir
 
 	// Init database
-	database.Init(dbPath)
+	database.Init(dbURL)
 
 	// Fiber app
 	app := fiber.New(fiber.Config{
