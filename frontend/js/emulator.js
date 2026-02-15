@@ -1,6 +1,7 @@
 let currentSaveId = null;
 let currentSave = null;
 let saveTimeout = null;
+let emulatorReady = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!requireAuth()) return;
@@ -14,6 +15,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('back-btn').addEventListener('click', () => {
         window.location.href = '/lobby.html';
+    });
+
+    // Save before leaving the page
+    window.addEventListener('beforeunload', () => {
+        if (emulatorReady) extractAndUploadSave();
     });
 
     await loadAndStartGame();
@@ -44,11 +50,12 @@ async function loadAndStartGame() {
     window.EJS_player = '#game';
     window.EJS_core = system;
     window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_color = '#dc0a2d';
 
     // ROM URL (public endpoint, no auth needed)
     window.EJS_gameUrl = API + '/roms/download?name=' + encodeURIComponent(currentSave.rom_name);
 
-    // Try to load existing save data as blob URL (needs auth)
+    // Load existing save data
     if (currentSave.has_save_data) {
         const saveDataUrl = await createAuthenticatedBlobUrl('/saves/' + currentSaveId);
         if (saveDataUrl) {
@@ -56,17 +63,25 @@ async function loadAndStartGame() {
         }
     }
 
-    // Auto-save callback
+    // Auto-save: fires when in-game save changes (e.g. saving at Pokemon Center)
     window.EJS_onSaveUpdate = function(e) {
-        // Debounce saves to avoid spamming the server
+        console.log('[PokemonWeb] Save update detected, uploading...');
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
             uploadSaveData(e.save);
-        }, 2000);
+        }, 1000);
     };
 
     window.EJS_onGameStart = function() {
+        console.log('[PokemonWeb] Game started');
+        emulatorReady = true;
         document.getElementById('loading-msg').classList.add('hidden');
+
+        // Periodic auto-save every 30 seconds as backup
+        setInterval(() => {
+            extractAndUploadSave();
+        }, 30000);
+
         // Show nuzlocke panel if applicable
         if (currentSave.is_nuzlocke) {
             document.getElementById('nuzlocke-panel').classList.remove('hidden');
@@ -91,18 +106,75 @@ async function createAuthenticatedBlobUrl(path) {
     }
 }
 
+function getEmulatorInstance() {
+    // EmulatorJS exposes the emulator on the window after init
+    if (window.EJS_emulator) return window.EJS_emulator;
+
+    // Try via iframe
+    const iframe = document.querySelector('#game iframe');
+    if (iframe && iframe.contentWindow) {
+        return iframe.contentWindow.EJS_emulator || null;
+    }
+    return null;
+}
+
+function extractAndUploadSave() {
+    try {
+        const emu = getEmulatorInstance();
+        if (!emu) return;
+
+        // Try different methods to get save data
+        if (emu.gameManager && typeof emu.gameManager.getSave === 'function') {
+            const save = emu.gameManager.getSave();
+            if (save && save.length > 0) {
+                uploadSaveData(save);
+                return;
+            }
+        }
+
+        // Alternative: try getSaveFile
+        if (typeof emu.getSaveFile === 'function') {
+            const save = emu.getSaveFile();
+            if (save && save.length > 0) {
+                uploadSaveData(save);
+                return;
+            }
+        }
+
+        // Alternative: try Module FS
+        if (emu.Module && emu.Module.FS) {
+            try {
+                const files = emu.Module.FS.readdir('/data/saves/');
+                for (const file of files) {
+                    if (file === '.' || file === '..') continue;
+                    const data = emu.Module.FS.readFile('/data/saves/' + file);
+                    if (data && data.length > 0) {
+                        uploadSaveData(data);
+                        return;
+                    }
+                }
+            } catch {}
+        }
+    } catch (err) {
+        console.error('[PokemonWeb] Extract save failed:', err);
+    }
+}
+
 async function uploadSaveData(saveBuffer) {
     try {
-        await fetch(API + '/saves/' + currentSaveId, {
+        const res = await fetch(API + '/saves/' + currentSaveId, {
             method: 'PUT',
             headers: {
                 'Authorization': 'Bearer ' + getToken()
             },
             body: saveBuffer
         });
-        showSaveIndicator();
+        if (res.ok) {
+            console.log('[PokemonWeb] Save uploaded successfully');
+            showSaveIndicator();
+        }
     } catch (err) {
-        console.error('Failed to upload save:', err);
+        console.error('[PokemonWeb] Upload save failed:', err);
     }
 }
 
@@ -119,28 +191,14 @@ async function manualSave() {
     const btn = document.getElementById('save-btn');
     btn.disabled = true;
     btn.textContent = 'Guardando...';
-    try {
-        // Trigger EmulatorJS to flush save to IndexedDB, then grab it
-        const ejs = document.querySelector('#game iframe');
-        if (ejs && ejs.contentWindow && ejs.contentWindow.EJS_emulator) {
-            const emulator = ejs.contentWindow.EJS_emulator;
-            if (emulator.gameManager) {
-                const save = emulator.gameManager.getSave();
-                if (save && save.length > 0) {
-                    await uploadSaveData(save);
-                    btn.textContent = 'Guardado!';
-                    setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 2000);
-                    return;
-                }
-            }
-        }
-        btn.textContent = 'Sin datos';
-        setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 2000);
-    } catch (err) {
-        console.error('Manual save failed:', err);
-        btn.textContent = 'Error';
-        setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 2000);
-    }
+
+    extractAndUploadSave();
+
+    // Give it a moment then show result
+    setTimeout(() => {
+        btn.textContent = 'Guardado!';
+        setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 1500);
+    }, 1000);
 }
 
 function showSaveIndicator() {
