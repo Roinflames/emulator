@@ -41,20 +41,6 @@ async function loadAndStartGame() {
     const systemMap = { gb: 'gb', gbc: 'gb', gba: 'gba', nds: 'nds' };
     const system = systemMap[ext] || 'gba';
 
-    // Pre-fetch save data if it exists
-    if (currentSave.has_save_data) {
-        try {
-            const res = await apiRequest('/saves/' + currentSaveId);
-            if (res && res.ok) {
-                const blob = await res.blob();
-                pendingSaveData = new Uint8Array(await blob.arrayBuffer());
-                console.log('[PokemonWeb] Save data loaded:', pendingSaveData.length, 'bytes');
-            }
-        } catch (e) {
-            console.error('[PokemonWeb] Failed to load save data:', e);
-        }
-    }
-
     // Setup EmulatorJS
     window.EJS_player = '#game';
     window.EJS_core = system;
@@ -64,10 +50,28 @@ async function loadAndStartGame() {
     // ROM URL (public endpoint)
     window.EJS_gameUrl = API + '/roms/download?name=' + encodeURIComponent(currentSave.rom_name);
 
-    // Force save flush every 30 seconds so EJS_onSaveSave fires
+    // Pre-fetch save data and inject via EJS_externalFiles BEFORE emulator loads
+    if (currentSave.has_save_data) {
+        try {
+            const res = await apiRequest('/saves/' + currentSaveId);
+            if (res && res.ok) {
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const romBase = currentSave.rom_name.replace(/\.[^.]+$/, '');
+                // Inject save file into emulator's virtual filesystem before boot
+                window.EJS_externalFiles = {};
+                window.EJS_externalFiles['/data/saves/' + romBase + '.srm'] = blobUrl;
+                console.log('[PokemonWeb] Save injected via EJS_externalFiles:', blob.size, 'bytes');
+            }
+        } catch (e) {
+            console.error('[PokemonWeb] Failed to load save data:', e);
+        }
+    }
+
+    // Force save flush every 30 seconds
     window.EJS_fixedSaveInterval = 30000;
 
-    // Callback when save is flushed (this is the correct one)
+    // Callback when save is flushed
     window.EJS_onSaveSave = function(e) {
         console.log('[PokemonWeb] EJS_onSaveSave fired');
         if (e && e.save && e.save.length > 0) {
@@ -75,7 +79,6 @@ async function loadAndStartGame() {
         }
     };
 
-    // Also try EJS_onSaveUpdate as fallback
     window.EJS_onSaveUpdate = function(e) {
         console.log('[PokemonWeb] EJS_onSaveUpdate fired');
         if (e && e.save && e.save.length > 0) {
@@ -88,11 +91,6 @@ async function loadAndStartGame() {
         emulatorReady = true;
         document.getElementById('loading-msg').classList.add('hidden');
 
-        // Inject save data into emulator filesystem
-        if (pendingSaveData) {
-            injectSaveData(pendingSaveData);
-        }
-
         // Show nuzlocke panel if applicable
         if (currentSave.is_nuzlocke) {
             document.getElementById('nuzlocke-panel').classList.remove('hidden');
@@ -104,79 +102,6 @@ async function loadAndStartGame() {
     const script = document.createElement('script');
     script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
     document.body.appendChild(script);
-}
-
-function injectSaveData(saveData) {
-    try {
-        const emu = getEmulatorInstance();
-        if (!emu) {
-            console.error('[PokemonWeb] No emulator instance found for save injection');
-            return;
-        }
-
-        const gm = emu.gameManager;
-        if (!gm) {
-            console.error('[PokemonWeb] No gameManager found');
-            return;
-        }
-
-        // Method 1: Use loadSaveFiles if available
-        if (typeof gm.loadSaveFiles === 'function') {
-            console.log('[PokemonWeb] Using loadSaveFiles()');
-            gm.loadSaveFiles();
-        }
-
-        // Method 2: Write directly to the virtual filesystem
-        if (gm.FS) {
-            const savePath = getSavePath(gm.FS);
-            if (savePath) {
-                console.log('[PokemonWeb] Writing save to:', savePath);
-                gm.FS.writeFile(savePath, saveData);
-                // Reload the save into the core
-                if (typeof gm.loadSave === 'function') {
-                    gm.loadSave();
-                }
-                console.log('[PokemonWeb] Save injected! Restart the game or load save in-game.');
-            }
-        } else if (gm.Module && gm.Module.FS) {
-            const savePath = getSavePath(gm.Module.FS);
-            if (savePath) {
-                console.log('[PokemonWeb] Writing save via Module.FS to:', savePath);
-                gm.Module.FS.writeFile(savePath, saveData);
-                console.log('[PokemonWeb] Save injected via Module.FS');
-            }
-        }
-    } catch (err) {
-        console.error('[PokemonWeb] Save injection failed:', err);
-    }
-}
-
-function getSavePath(fs) {
-    // Try common save paths used by RetroArch/EmulatorJS
-    const paths = [
-        '/data/saves/',
-        '/home/web_user/retroarch/userdata/saves/',
-        '/home/web_user/retroarch/userdata/states/'
-    ];
-
-    for (const dir of paths) {
-        try {
-            const files = fs.readdir(dir);
-            for (const file of files) {
-                if (file === '.' || file === '..') continue;
-                if (file.endsWith('.srm') || file.endsWith('.sav')) {
-                    return dir + file;
-                }
-            }
-            // If directory exists but no save file yet, create one
-            if (files.length <= 2) { // only . and ..
-                // Derive save name from ROM name
-                const romBase = currentSave.rom_name.replace(/\.[^.]+$/, '');
-                return dir + romBase + '.srm';
-            }
-        } catch {}
-    }
-    return null;
 }
 
 function getEmulatorInstance() {
