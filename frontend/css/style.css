@@ -204,6 +204,26 @@ a { color: var(--accent-blue); }
     gap: 0.8rem;
 }
 
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-save {
+    background: var(--green);
+    color: white;
+}
+
+.emulator-container:fullscreen {
+    background: #000;
+}
+
+.emulator-container:fullscreen .game-canvas {
+    width: 100vw;
+    height: 100vh;
+}
+
 .rom-info-tag {
     font-size: 0.75rem;
     color: var(--text-muted);

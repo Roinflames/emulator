@@ -106,6 +106,43 @@ async function uploadSaveData(saveBuffer) {
     }
 }
 
+function toggleFullscreen() {
+    const container = document.querySelector('.emulator-container');
+    if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(() => {});
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+async function manualSave() {
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+    try {
+        // Trigger EmulatorJS to flush save to IndexedDB, then grab it
+        const ejs = document.querySelector('#game iframe');
+        if (ejs && ejs.contentWindow && ejs.contentWindow.EJS_emulator) {
+            const emulator = ejs.contentWindow.EJS_emulator;
+            if (emulator.gameManager) {
+                const save = emulator.gameManager.getSave();
+                if (save && save.length > 0) {
+                    await uploadSaveData(save);
+                    btn.textContent = 'Guardado!';
+                    setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 2000);
+                    return;
+                }
+            }
+        }
+        btn.textContent = 'Sin datos';
+        setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 2000);
+    } catch (err) {
+        console.error('Manual save failed:', err);
+        btn.textContent = 'Error';
+        setTimeout(() => { btn.textContent = 'Guardar'; btn.disabled = false; }, 2000);
+    }
+}
+
 function showSaveIndicator() {
     const indicator = document.getElementById('save-indicator');
     indicator.classList.remove('hidden');

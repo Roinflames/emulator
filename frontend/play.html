@@ -13,7 +13,11 @@
             <h1 id="game-title">Cargando...</h1>
             <span id="rom-info" class="rom-info-tag"></span>
         </div>
-        <div id="save-indicator" class="save-indicator hidden">Guardado</div>
+        <div class="topbar-actions">
+            <button id="save-btn" class="btn btn-sm btn-save" onclick="manualSave()" title="Guardar al servidor">Guardar</button>
+            <button id="fullscreen-btn" class="btn btn-sm" onclick="toggleFullscreen()" title="Pantalla completa">Pantalla completa</button>
+            <div id="save-indicator" class="save-indicator hidden">Guardado</div>
+        </div>
     </header>
 
     <main class="play-layout">
