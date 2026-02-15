@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokemon Web - Lobby</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header class="topbar">
+        <h1>Pokemon Web</h1>
+        <div class="topbar-right">
+            <span id="username-display"></span>
+            <button id="logout-btn" class="btn btn-sm">Salir</button>
+        </div>
+    </header>
+
+    <main class="lobby">
+        <!-- ROMs disponibles -->
+        <section class="card">
+            <h2>ROMs Disponibles</h2>
+            <div id="roms-list" class="roms-grid">
+                <p class="empty-msg">Cargando...</p>
+            </div>
+        </section>
+
+        <!-- Crear nueva partida -->
+        <section class="card">
+            <h2>Nueva Partida</h2>
+            <form id="new-save-form" class="new-save-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rom-select">ROM</label>
+                        <select id="rom-select" required>
+                            <option value="">-- Selecciona --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="save-name">Nombre de partida</label>
+                        <input type="text" id="save-name" placeholder="Mi aventura" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="is-nuzlocke">
+                        <span>Modo Nuzlocke</span>
+                    </label>
+                    <button type="submit" class="btn btn-primary">Crear Partida</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Partidas guardadas -->
+        <section class="card">
+            <h2>Mis Partidas</h2>
+            <div id="saves-list">
+                <p class="empty-msg">Cargando...</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/auth.js"></script>
+    <script src="/js/lobby.js"></script>
+</body>
+</html>

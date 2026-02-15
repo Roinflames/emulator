@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokemon Web - Jugar</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header class="topbar">
+        <button id="back-btn" class="btn btn-sm">Volver</button>
+        <div class="topbar-center">
+            <h1 id="game-title">Cargando...</h1>
+            <span id="rom-info" class="rom-info-tag"></span>
+        </div>
+        <div id="save-indicator" class="save-indicator hidden">Guardado</div>
+    </header>
+
+    <main class="play-layout">
+        <!-- Emulator -->
+        <div class="emulator-container">
+            <p id="loading-msg" class="loading-msg">Cargando emulador...</p>
+            <div id="game" class="game-canvas"></div>
+        </div>
+
+        <!-- Nuzlocke Panel -->
+        <aside id="nuzlocke-panel" class="nuzlocke-panel hidden">
+            <div id="nuzlocke-rules" class="nuz-section"></div>
+
+            <div id="nuzlocke-stats" class="nuz-section"></div>
+
+            <div class="nuz-section">
+                <h3>Agregar Pokemon</h3>
+                <form id="add-pokemon-form" class="nuz-form">
+                    <input type="text" name="pokemon_name" placeholder="Pokemon (ej: Pikachu)" required>
+                    <input type="text" name="nickname" placeholder="Apodo">
+                    <input type="text" name="route" placeholder="Ruta/Zona (ej: Ruta 1)" required>
+                    <input type="number" name="level_caught" placeholder="Nivel" min="1" max="100">
+                    <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
+                </form>
+            </div>
+
+            <div id="nuzlocke-team" class="nuz-section"></div>
+
+            <div id="nuzlocke-graveyard" class="nuz-section"></div>
+        </aside>
+    </main>
+
+    <script src="/js/auth.js"></script>
+    <script src="/js/nuzlocke.js"></script>
+    <script src="/js/emulator.js"></script>
+</body>
+</html>

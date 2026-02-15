@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokemon Web</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Pokemon Web</h1>
+                <p>Juega Pokemon en tu navegador</p>
+            </div>
+
+            <div class="tab-switcher">
+                <button class="tab-btn active" data-tab="login">Iniciar Sesion</button>
+                <button class="tab-btn" data-tab="register">Registrarse</button>
+            </div>
+
+            <form id="login-form" class="auth-form">
+                <div class="form-group">
+                    <label for="login-user">Usuario</label>
+                    <input type="text" id="login-user" placeholder="Tu nombre de usuario" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="login-pass">Contrasena</label>
+                    <input type="password" id="login-pass" placeholder="Tu contrasena" required minlength="4">
+                </div>
+                <button type="submit" class="btn btn-primary">Entrar</button>
+                <p id="login-error" class="error-msg hidden"></p>
+            </form>
+
+            <form id="register-form" class="auth-form hidden">
+                <div class="form-group">
+                    <label for="reg-user">Usuario</label>
+                    <input type="text" id="reg-user" placeholder="Elige un nombre" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="reg-pass">Contrasena</label>
+                    <input type="password" id="reg-pass" placeholder="Elige una contrasena" required minlength="4">
+                </div>
+                <button type="submit" class="btn btn-primary">Crear cuenta</button>
+                <p id="register-error" class="error-msg hidden"></p>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        // Redirect if already logged in
+        if (getToken()) {
+            window.location.href = '/lobby.html';
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const tab = btn.dataset.tab;
+                document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+                document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+            });
+        });
+
+        // Login
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errEl = document.getElementById('login-error');
+            errEl.classList.add('hidden');
+
+            try {
+                const res = await fetch(API + '/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('login-user').value,
+                        password: document.getElementById('login-pass').value
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errEl.textContent = data.error || 'Error al iniciar sesion';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                setAuth(data.token, data.username);
+                window.location.href = '/lobby.html';
+            } catch {
+                errEl.textContent = 'Error de conexion';
+                errEl.classList.remove('hidden');
+            }
+        });
+
+        // Register
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errEl = document.getElementById('register-error');
+            errEl.classList.add('hidden');
+
+            try {
+                const res = await fetch(API + '/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('reg-user').value,
+                        password: document.getElementById('reg-pass').value
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errEl.textContent = data.error || 'Error al registrarse';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                setAuth(data.token, data.username);
+                window.location.href = '/lobby.html';
+            } catch {
+                errEl.textContent = 'Error de conexion';
+                errEl.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
