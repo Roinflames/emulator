@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS nuzlocke_pokemon;
+DROP TABLE IF EXISTS roms;
+DROP TABLE IF EXISTS saves;
+DROP TABLE IF EXISTS users;
+

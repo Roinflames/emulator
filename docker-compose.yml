@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pokemon_web
+      POSTGRES_USER: pokemon
+      POSTGRES_PASSWORD: pokemon
+    ports:
+      - "5432:5432"
+    volumes:
+      - pokemon_web_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pokemon -d pokemon_web"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pokemon_web_pgdata:
+

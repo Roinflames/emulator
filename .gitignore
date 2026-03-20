@@ -1,3 +1,8 @@
 *.db
 backend/pokemon-web
 roms/*.zip
+roms/*.gb
+roms/*.gbc
+roms/*.gba
+roms/*.nds
+.env

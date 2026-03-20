@@ -8,7 +8,7 @@
 </head>
 <body>
     <header class="topbar">
-        <h1>Pokemon Web</h1>
+        <h1>Pokemon Web <span class="topbar-version">v<span data-app-version>dev</span></span></h1>
         <div class="topbar-right">
             <span id="username-display"></span>
             <button id="logout-btn" class="btn btn-sm">Salir</button>
@@ -18,7 +18,13 @@
     <main class="lobby">
         <!-- ROMs disponibles -->
         <section class="card">
-            <h2>ROMs Disponibles</h2>
+            <div class="card-header">
+                <h2>ROMs Disponibles</h2>
+                <label class="btn btn-sm btn-primary upload-btn">
+                    Subir ROM
+                    <input type="file" id="rom-upload" accept=".gb,.gbc,.gba,.nds" hidden>
+                </label>
+            </div>
             <div id="roms-list" class="roms-grid">
                 <p class="empty-msg">Cargando...</p>
             </div>
@@ -60,6 +66,7 @@
     </main>
 
     <script src="/js/auth.js"></script>
+    <script src="/js/version.js"></script>
     <script src="/js/lobby.js"></script>
 </body>
 </html>

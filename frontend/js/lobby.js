@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadSaves();
 
     document.getElementById('new-save-form').addEventListener('submit', createSave);
+    document.getElementById('rom-upload').addEventListener('change', uploadRom);
 });
 
 let availableRoms = [];
@@ -107,6 +108,28 @@ async function createSave(e) {
 
 function playSave(saveId) {
     window.location.href = `/play.html?save=${saveId}`;
+}
+
+async function uploadRom(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('rom', file);
+
+    const res = await fetch(API + '/roms/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+        body: formData
+    });
+
+    if (res && res.ok) {
+        await loadRoms();
+    } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Error al subir ROM');
+    }
+    e.target.value = '';
 }
 
 async function deleteSave(saveId, name) {

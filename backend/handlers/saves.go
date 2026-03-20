@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,8 +12,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 )
-
-var RomsDir string
 
 func detectSystem(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
@@ -33,34 +30,58 @@ func detectSystem(filename string) string {
 }
 
 func ListRoms(c *fiber.Ctx) error {
-	entries, err := os.ReadDir(RomsDir)
+	rows, err := database.DB.Query("SELECT id, filename, size, system FROM roms ORDER BY filename")
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to read roms directory"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to query roms"})
 	}
+	defer rows.Close()
 
-	validExts := map[string]bool{".gb": true, ".gbc": true, ".gba": true, ".nds": true}
 	var roms []models.RomInfo
+	for rows.Next() {
+		var r models.RomInfo
+		if err := rows.Scan(&r.ID, &r.Filename, &r.Size, &r.System); err != nil {
+			continue
+		}
+		roms = append(roms, r)
+	}
+	if roms == nil {
+		roms = []models.RomInfo{}
+	}
+	return c.JSON(roms)
+}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		ext := strings.ToLower(filepath.Ext(entry.Name()))
-		if !validExts[ext] {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-		roms = append(roms, models.RomInfo{
-			Filename: entry.Name(),
-			Size:     info.Size(),
-			System:   detectSystem(entry.Name()),
-		})
+func UploadRom(c *fiber.Ctx) error {
+	file, err := c.FormFile("rom")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "rom file required"})
 	}
 
-	return c.JSON(roms)
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	validExts := map[string]bool{".gb": true, ".gbc": true, ".gba": true, ".nds": true}
+	if !validExts[ext] {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid file type, must be .gb, .gbc, .gba or .nds"})
+	}
+
+	f, err := file.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to read file"})
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to read file"})
+	}
+
+	system := detectSystem(file.Filename)
+	_, err = database.DB.Exec(
+		"INSERT INTO roms (filename, size, system, data) VALUES ($1, $2, $3, $4) ON CONFLICT (filename) DO UPDATE SET data = $4, size = $2",
+		file.Filename, len(data), system, data)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to store rom"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "rom uploaded", "filename": file.Filename})
 }
 
 func ServeRom(c *fiber.Ctx) error {
@@ -68,14 +89,32 @@ func ServeRom(c *fiber.Ctx) error {
 	if filename == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name query param required"})
 	}
-	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid filename"})
-	}
-	path := filepath.Join(RomsDir, filename)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+
+	var data []byte
+	err := database.DB.QueryRow("SELECT data FROM roms WHERE filename = $1", filename).Scan(&data)
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "rom not found"})
 	}
-	return c.SendFile(path)
+
+	c.Set("Content-Type", "application/octet-stream")
+	return c.Send(data)
+}
+
+func DeleteRom(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rom id"})
+	}
+
+	result, err := database.DB.Exec("DELETE FROM roms WHERE id = $1", id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete rom"})
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "rom not found"})
+	}
+	return c.JSON(fiber.Map{"message": "rom deleted"})
 }
 
 func ListSaves(c *fiber.Ctx) error {

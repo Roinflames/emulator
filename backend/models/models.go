@@ -32,6 +32,14 @@ type NuzlockePokemon struct {
 	Notes        string `json:"notes,omitempty"`
 }
 
+type NuzlockeRoute struct {
+	ID     int    `json:"id"`
+	SaveID int    `json:"save_id"`
+	Route  string `json:"route"`
+	Status string `json:"status"`
+	Notes  string `json:"notes,omitempty"`
+}
+
 type RegisterRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -54,6 +62,7 @@ type CreateSaveRequest struct {
 }
 
 type RomInfo struct {
+	ID       int    `json:"id"`
 	Filename string `json:"filename"`
 	Size     int64  `json:"size"`
 	System   string `json:"system"`

@@ -96,6 +96,19 @@ a { color: var(--accent-blue); }
     margin-top: 0.3rem;
 }
 
+.app-version {
+    margin-top: 0.6rem;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.topbar-version {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 0.35rem;
+}
+
 .tab-switcher {
     display: flex;
     gap: 0;
@@ -143,6 +156,109 @@ a { color: var(--accent-blue); }
     background: var(--darker);
     color: var(--text);
     font-size: 0.95rem;
+}
+
+.field-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.field-icon {
+    position: absolute;
+    left: 0.65rem;
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.field-with-icon input {
+    padding-left: 2.4rem;
+}
+
+.password-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-field input {
+    padding-left: 2.4rem;
+    padding-right: 2.7rem;
+}
+
+.pass-toggle {
+    position: absolute;
+    right: 0.35rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    padding: 0.3rem;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.pass-toggle:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-50%) scale(1.06);
+}
+
+.pass-toggle:focus {
+    outline: 2px solid var(--red);
+    outline-offset: 2px;
+}
+
+.pass-toggle .icon {
+    width: 18px;
+    height: 18px;
+    display: none;
+}
+
+.pass-toggle[data-state="hidden"] .icon-eye {
+    display: block;
+}
+
+.pass-toggle[data-state="shown"] .icon-eye-off {
+    display: block;
+}
+
+.auth-form.animate-in {
+    animation: popIn 180ms ease-out;
+}
+
+.error-msg.shake {
+    animation: shake 220ms ease-out;
+}
+
+.pass-toggle.pulse {
+    animation: pulse 180ms ease-out;
+}
+
+@keyframes popIn {
+    0% { opacity: 0; transform: translateY(6px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    50% { transform: translateX(6px); }
+    75% { transform: translateX(-4px); }
+    100% { transform: translateX(0); }
+}
+
+@keyframes pulse {
+    0% { transform: translateY(-50%) scale(1); }
+    55% { transform: translateY(-50%) scale(1.12); }
+    100% { transform: translateY(-50%) scale(1); }
 }
 
 .form-group input:focus,
@@ -255,6 +371,25 @@ a { color: var(--accent-blue); }
     color: var(--accent);
     border-bottom: 1px solid var(--border);
     padding-bottom: 0.5rem;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.card-header h2 {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.upload-btn {
+    cursor: pointer;
 }
 
 .empty-msg {
@@ -438,15 +573,37 @@ a { color: var(--accent-blue); }
     font-size: 0.85rem;
 }
 
+.nuz-form select {
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
 .nuz-form input:focus {
     outline: none;
     border-color: var(--red);
 }
 
+.nuz-form select:focus {
+    outline: none;
+    border-color: var(--red);
+}
+
+.nuz-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.4rem;
+    align-items: center;
+}
+
 /* Pokemon cards */
 .nuz-pokemon {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     padding: 0.5rem;
     border-radius: 6px;
@@ -475,6 +632,80 @@ a { color: var(--accent-blue); }
 .nuz-route { font-size: 0.75rem; color: var(--accent-blue); }
 .nuz-level { font-size: 0.75rem; color: var(--text-muted); }
 .nuz-death { font-size: 0.75rem; color: var(--danger); font-style: italic; }
+
+.nuz-actions {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.nuz-edit-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.nuz-edit-form input {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--text);
+    font-size: 0.8rem;
+}
+
+/* Routes */
+.nuz-route-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.6rem;
+}
+
+.nuz-pill {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.nuz-route-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 0.45rem 0.5rem;
+    border-radius: 6px;
+    margin-top: 0.4rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+}
+
+.nuz-route-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.nuz-route-status {
+    display: inline-flex;
+    width: fit-content;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.nuz-route-status.status-pending { border-color: var(--border); }
+.nuz-route-status.status-visited { border-color: var(--accent-blue); color: var(--accent-blue); }
+.nuz-route-status.status-captured { border-color: var(--green); color: var(--green); }
+.nuz-route-status.status-missed { border-color: var(--danger); color: var(--danger); }
 
 /* Stats */
 .stats-grid {

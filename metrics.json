@@ -1,0 +1,12 @@
+{
+  "project_id": "12",
+  "project_slug": "pokemon-web",
+  "group": "active",
+  "priority": "P1",
+  "progress_percent": 45,
+  "status": "at_risk",
+  "blocker": "Sin deploy estable; requiere DATABASE_URL configurado",
+  "version": "v0.1.0",
+  "last_update": "2026-02-23",
+  "source": "repo-scan"
+}
